@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
     // Verify subscription with PayPal
     const paypalSub = await getPayPalSubscription(subscriptionId);
     const status = (paypalSub.status as string) ?? "UNKNOWN";
+    const billingInfo = paypalSub.billing_info as Record<string, unknown> | undefined;
+    const nextBillingTime = (billingInfo?.next_billing_time as string) ?? null;
 
     // Resolve Supabase plan UUID from paypal_plan_id
     const { data: plan, error: planError } = await supabase
@@ -38,6 +40,7 @@ export async function POST(req: NextRequest) {
           paypal_subscription_id: subscriptionId,
           plan_id: null,
           status,
+          next_billing_time: nextBillingTime,
         })
         .select()
         .single();
@@ -57,6 +60,7 @@ export async function POST(req: NextRequest) {
           paypal_subscription_id: subscriptionId,
           plan_id: plan.id,
           status,
+          next_billing_time: nextBillingTime,
         },
         { onConflict: "paypal_subscription_id" }
       )

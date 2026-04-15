@@ -15,6 +15,7 @@ export interface Subscription {
   plan_id: string | null;
   user_label: string | null;
   status: string | null;
+  next_billing_time: string | null;
   created_at: string;
   updated_at: string;
   plans?: Pick<Plan, "name" | "price_usd"> | null;

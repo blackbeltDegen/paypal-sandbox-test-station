@@ -151,6 +151,7 @@ export default function SubscriptionsPanel({
                 <th className="pb-3 pr-4 font-medium">Subscription ID</th>
                 <th className="pb-3 pr-4 font-medium">Plan</th>
                 <th className="pb-3 pr-4 font-medium">Status</th>
+                <th className="pb-3 pr-4 font-medium">Next Billing</th>
                 <th className="pb-3 pr-4 font-medium">Created</th>
                 <th className="pb-3 font-medium">Actions</th>
               </tr>
@@ -191,6 +192,18 @@ export default function SubscriptionsPanel({
                       >
                         {sub.status ?? "—"}
                       </span>
+                    </td>
+                    <td className="py-3 pr-4 text-white/70">
+                      {sub.next_billing_time ? (
+                        <span className="text-gold-400">
+                          {new Date(sub.next_billing_time).toLocaleDateString(
+                            undefined,
+                            { month: "short", day: "numeric", year: "numeric" }
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-white/30">— click Refresh</span>
+                      )}
                     </td>
                     <td className="py-3 pr-4 text-white/40">
                       {new Date(sub.created_at).toLocaleDateString()}

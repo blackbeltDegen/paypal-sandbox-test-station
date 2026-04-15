@@ -26,11 +26,13 @@ export async function GET(
     // Fetch live status from PayPal
     const paypalSub = await getPayPalSubscription(sub.paypal_subscription_id);
     const newStatus = (paypalSub.status as string) ?? sub.status;
+    const billingInfo = paypalSub.billing_info as Record<string, unknown> | undefined;
+    const nextBillingTime = (billingInfo?.next_billing_time as string) ?? null;
 
     // Update Supabase
     const { data: updated, error: updateError } = await supabase
       .from("subscriptions")
-      .update({ status: newStatus })
+      .update({ status: newStatus, next_billing_time: nextBillingTime })
       .eq("id", params.id)
       .select()
       .single();
