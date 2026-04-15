@@ -90,11 +90,13 @@ export async function POST(
       (req.headers.get("origin") || "http://localhost:3000");
 
     // Revise the subscription to the new plan
+    // Encode subId + newPlanId in the return URL so we can update Supabase after approval
+    const returnUrl = `${baseUrl}/?paypal=revised&subId=${params.id}&planId=${newPlan.id}`;
     const approvalUrl = await revisePayPalSubscription(
       sub.paypal_subscription_id,
       newPaypalPlanId,
       new Date(Date.now() + 60_000).toISOString(),
-      `${baseUrl}/?paypal=success`,
+      returnUrl,
       `${baseUrl}/?paypal=cancelled`
     );
 

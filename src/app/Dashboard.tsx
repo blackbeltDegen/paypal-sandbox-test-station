@@ -11,12 +11,16 @@ interface Props {
   initialPlans: Plan[];
   initialSubscriptions: Subscription[];
   paypalStatus: string | null;
+  revisedSubId: string | null;
+  revisedPlanId: string | null;
 }
 
 export default function Dashboard({
   initialPlans,
   initialSubscriptions,
   paypalStatus,
+  revisedSubId,
+  revisedPlanId,
 }: Props) {
   const router = useRouter();
   const [logs, setLogs] = useState<string[]>([]);
@@ -37,9 +41,20 @@ export default function Dashboard({
     if (paypalStatus === "success") {
       setBanner({ type: "success", msg: "Subscription activated successfully!" });
       addLog("PayPal checkout completed — subscription activated.");
-      // Auto-dismiss after 8 seconds
       bannerTimer.current = setTimeout(() => setBanner(null), 8000);
-      // Clear the query param from the URL
+      router.replace("/", { scroll: false });
+    } else if (paypalStatus === "revised" && revisedSubId && revisedPlanId) {
+      // Update the subscription's plan_id in Supabase after revision approval
+      fetch(`/api/subscriptions/${revisedSubId}/plan`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPlanId: revisedPlanId }),
+      }).then(() => {
+        refreshSubscriptions();
+        addLog(`Subscription updated — plan change approved.`);
+      });
+      setBanner({ type: "success", msg: "Subscription updated successfully!" });
+      bannerTimer.current = setTimeout(() => setBanner(null), 8000);
       router.replace("/", { scroll: false });
     } else if (paypalStatus === "cancelled") {
       setBanner({ type: "warning", msg: "Checkout was cancelled." });
@@ -49,7 +64,7 @@ export default function Dashboard({
     return () => {
       if (bannerTimer.current) clearTimeout(bannerTimer.current);
     };
-  }, [paypalStatus, router, addLog]);
+  }, [paypalStatus, revisedSubId, revisedPlanId, router, addLog]);
 
   async function refreshSubscriptions() {
     try {

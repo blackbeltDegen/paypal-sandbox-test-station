@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 export default async function HomePage({
   searchParams,
 }: {
-  searchParams: { paypal?: string };
+  searchParams: { paypal?: string; subId?: string; planId?: string };
 }) {
   const supabase = createSupabaseServerClient();
 
@@ -23,12 +23,16 @@ export default async function HomePage({
   ]);
 
   const paypalStatus = searchParams?.paypal ?? null;
+  const subId = searchParams?.subId ?? null;
+  const planId = searchParams?.planId ?? null;
 
   return (
     <Dashboard
       initialPlans={(plans as Plan[]) ?? []}
       initialSubscriptions={(subscriptions as Subscription[]) ?? []}
       paypalStatus={paypalStatus}
+      revisedSubId={subId}
+      revisedPlanId={planId}
     />
   );
 }
