@@ -8,11 +8,13 @@ export async function POST(
 ) {
   try {
     const body = (await req.json()) as {
+      planName?: string;
       priceUsd: number;
       billingFrequencyMonths: number;
+      startTime?: string;
     };
 
-    const { priceUsd, billingFrequencyMonths } = body;
+    const { planName, priceUsd, billingFrequencyMonths, startTime } = body;
 
     if (!priceUsd || !billingFrequencyMonths) {
       return NextResponse.json(
@@ -37,7 +39,7 @@ export async function POST(
       );
     }
 
-    const baseName = sub.plans?.name ?? "Updated Plan";
+    const baseName = planName?.trim() || sub.plans?.name || "Updated Plan";
     const freqLabel =
       billingFrequencyMonths === 1
         ? "Monthly"
@@ -92,10 +94,11 @@ export async function POST(
     // Revise the subscription to the new plan
     // Encode subId + newPlanId in the return URL so we can update Supabase after approval
     const returnUrl = `${baseUrl}/?paypal=revised&subId=${params.id}&planId=${newPlan.id}`;
+    const effectiveTime = startTime ?? new Date(Date.now() + 60_000).toISOString();
     const approvalUrl = await revisePayPalSubscription(
       sub.paypal_subscription_id,
       newPaypalPlanId,
-      new Date(Date.now() + 60_000).toISOString(),
+      effectiveTime,
       returnUrl,
       `${baseUrl}/?paypal=cancelled`
     );

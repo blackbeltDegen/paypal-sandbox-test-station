@@ -10,8 +10,10 @@ interface Props {
 }
 
 interface UpdateForm {
+  planName: string;
   priceUsd: string;
   billingFrequencyMonths: string;
+  startDate: string;
 }
 
 export default function SubscriptionsPanel({
@@ -25,8 +27,10 @@ export default function SubscriptionsPanel({
   // Update modal state
   const [updateSub, setUpdateSub] = useState<Subscription | null>(null);
   const [updateForm, setUpdateForm] = useState<UpdateForm>({
+    planName: "",
     priceUsd: "",
     billingFrequencyMonths: "1",
+    startDate: "",
   });
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateLoading, setUpdateLoading] = useState(false);
@@ -98,12 +102,18 @@ export default function SubscriptionsPanel({
 
   function openUpdateModal(sub: Subscription) {
     const currentPlan = plans.find((p) => p.id === sub.plan_id);
+    // Default start date to tomorrow
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const defaultDate = tomorrow.toISOString().slice(0, 10);
     setUpdateSub(sub);
     setUpdateForm({
+      planName: currentPlan?.name ?? "",
       priceUsd: currentPlan ? String(currentPlan.price_usd) : "",
       billingFrequencyMonths: currentPlan
         ? String(currentPlan.billing_frequency_months)
         : "1",
+      startDate: defaultDate,
     });
     setUpdateError(null);
   }
@@ -119,6 +129,13 @@ export default function SubscriptionsPanel({
       setUpdateError("Enter a valid price.");
       return;
     }
+    if (!updateForm.startDate) {
+      setUpdateError("Select a start date.");
+      return;
+    }
+
+    // Convert date to ISO datetime (start of day UTC)
+    const startTime = new Date(updateForm.startDate + "T00:00:00Z").toISOString();
 
     setUpdateLoading(true);
     try {
@@ -126,8 +143,10 @@ export default function SubscriptionsPanel({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          planName: updateForm.planName || undefined,
           priceUsd: price,
           billingFrequencyMonths: freq,
+          startTime,
         }),
       });
       const data = await res.json();
@@ -331,6 +350,20 @@ export default function SubscriptionsPanel({
             <div className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-xs font-medium text-white/60">
+                  New Plan Name
+                </label>
+                <input
+                  type="text"
+                  value={updateForm.planName}
+                  onChange={(e) =>
+                    setUpdateForm((f) => ({ ...f, planName: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-white/10 bg-dark-700 px-3 py-2 text-sm text-white placeholder-white/30 focus:border-gold-500 focus:outline-none"
+                  placeholder="Pro Plan"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-white/60">
                   New Price (USD)
                 </label>
                 <input
@@ -365,6 +398,20 @@ export default function SubscriptionsPanel({
                   <option value="6">Every 6 months</option>
                   <option value="12">Every 12 months</option>
                 </select>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-white/60">
+                  Start Date <span className="text-white/30">(first payment date)</span>
+                </label>
+                <input
+                  type="date"
+                  value={updateForm.startDate}
+                  min={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) =>
+                    setUpdateForm((f) => ({ ...f, startDate: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-white/10 bg-dark-700 px-3 py-2 text-sm text-white focus:border-gold-500 focus:outline-none"
+                />
               </div>
             </div>
 
