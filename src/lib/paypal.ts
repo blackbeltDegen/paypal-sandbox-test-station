@@ -50,7 +50,8 @@ export async function createPayPalBillingPlan(
   description: string,
   priceUsd: number,
   billingFrequencyMonths: number = 1,
-  existingProductId?: string
+  existingProductId?: string,
+  trialDays?: number
 ): Promise<string> {
   const token = await getPayPalAccessToken();
   const headers = {
@@ -92,13 +93,33 @@ export async function createPayPalBillingPlan(
       description: description || name,
       status: "ACTIVE",
       billing_cycles: [
+        // Optional $0 trial to delay first charge to a specific start date
+        ...(trialDays && trialDays > 0
+          ? [
+              {
+                frequency: {
+                  interval_unit: "DAY",
+                  interval_count: trialDays,
+                },
+                tenure_type: "TRIAL",
+                sequence: 1,
+                total_cycles: 1,
+                pricing_scheme: {
+                  fixed_price: {
+                    value: "0.00",
+                    currency_code: "USD",
+                  },
+                },
+              },
+            ]
+          : []),
         {
           frequency: {
             interval_unit: "MONTH",
             interval_count: billingFrequencyMonths,
           },
           tenure_type: "REGULAR",
-          sequence: 1,
+          sequence: trialDays && trialDays > 0 ? 2 : 1,
           total_cycles: 0, // indefinite
           pricing_scheme: {
             fixed_price: {

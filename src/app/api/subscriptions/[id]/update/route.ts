@@ -60,13 +60,26 @@ export async function POST(
       existingProductId = paypalPlan.product_id as string | undefined;
     }
 
+    // Calculate trial days: days from today to the chosen start date
+    // This creates a $0 trial period that delays the first real charge
+    let trialDays: number | undefined;
+    if (startTime) {
+      const start = new Date(startTime);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const diffMs = start.getTime() - today.getTime();
+      const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays > 1) trialDays = diffDays;
+    }
+
     // Create a new PayPal billing plan under the same product
     const newPaypalPlanId = await createPayPalBillingPlan(
       newPlanName,
       sub.plans?.description ?? newPlanName,
       Number(priceUsd),
       billingFrequencyMonths,
-      existingProductId
+      existingProductId,
+      trialDays
     );
 
     // Save the new plan to Supabase
