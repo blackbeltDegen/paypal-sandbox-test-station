@@ -9,6 +9,11 @@ interface Props {
   onLog: (msg: string) => void;
 }
 
+interface UpdateForm {
+  priceUsd: string;
+  billingFrequencyMonths: string;
+}
+
 export default function SubscriptionsPanel({
   initialSubscriptions,
   plans,
@@ -16,12 +21,15 @@ export default function SubscriptionsPanel({
 }: Props) {
   const [subs, setSubs] = useState<Subscription[]>(initialSubscriptions);
   const [loading, setLoading] = useState<string | null>(null);
-  const [reviseSubId, setReviseSubId] = useState<string | null>(null);
-  const [selectedNewPlan, setSelectedNewPlan] = useState("");
-  const [reviseError, setReviseError] = useState<string | null>(null);
-  const [reviseLoading, setReviseLoading] = useState(false);
 
-  const activePlans = plans.filter((p) => p.status === "ACTIVE");
+  // Update modal state
+  const [updateSub, setUpdateSub] = useState<Subscription | null>(null);
+  const [updateForm, setUpdateForm] = useState<UpdateForm>({
+    priceUsd: "",
+    billingFrequencyMonths: "1",
+  });
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateLoading, setUpdateLoading] = useState(false);
 
   async function handleRefreshStatus(sub: Subscription) {
     setLoading(sub.id);
@@ -53,9 +61,7 @@ export default function SubscriptionsPanel({
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Cancel failed");
       setSubs((prev) =>
-        prev.map((s) =>
-          s.id === sub.id ? { ...s, status: "CANCELLED" } : s
-        )
+        prev.map((s) => (s.id === sub.id ? { ...s, status: "CANCELLED" } : s))
       );
       onLog(`Subscription cancelled: ${sub.paypal_subscription_id}`);
     } catch (err) {
@@ -90,31 +96,49 @@ export default function SubscriptionsPanel({
     }
   }
 
-  async function handleRevise(subId: string) {
-    setReviseError(null);
-    if (!selectedNewPlan) {
-      setReviseError("Please select a plan.");
+  function openUpdateModal(sub: Subscription) {
+    const currentPlan = plans.find((p) => p.id === sub.plan_id);
+    setUpdateSub(sub);
+    setUpdateForm({
+      priceUsd: currentPlan ? String(currentPlan.price_usd) : "",
+      billingFrequencyMonths: currentPlan
+        ? String(currentPlan.billing_frequency_months)
+        : "1",
+    });
+    setUpdateError(null);
+  }
+
+  async function handleUpdate() {
+    if (!updateSub) return;
+    setUpdateError(null);
+
+    const price = parseFloat(updateForm.priceUsd);
+    const freq = parseInt(updateForm.billingFrequencyMonths);
+
+    if (!price || price <= 0) {
+      setUpdateError("Enter a valid price.");
       return;
     }
-    setReviseLoading(true);
+
+    setUpdateLoading(true);
     try {
-      const res = await fetch(`/api/subscriptions/${subId}/revise`, {
+      const res = await fetch(`/api/subscriptions/${updateSub.id}/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          newPlanId: selectedNewPlan,
-          startTime: new Date(Date.now() + 60_000).toISOString(),
+          priceUsd: price,
+          billingFrequencyMonths: freq,
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Revise failed");
-      const sub = subs.find((s) => s.id === subId);
-      onLog(`Revision started for: ${sub?.paypal_subscription_id ?? subId}`);
+      if (!res.ok) throw new Error(data.error ?? "Update failed");
+      onLog(
+        `Subscription update initiated for ${updateSub.paypal_subscription_id} → $${price.toFixed(2)} / ${freq === 1 ? "month" : `${freq} months`}`
+      );
       window.location.href = data.approvalUrl;
     } catch (err) {
-      setReviseError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setReviseLoading(false);
+      setUpdateError(err instanceof Error ? err.message : "Unknown error");
+      setUpdateLoading(false);
     }
   }
 
@@ -179,7 +203,11 @@ export default function SubscriptionsPanel({
                         <span>
                           {plan.name}{" "}
                           <span className="text-white/40">
-                            (${Number(plan.price_usd).toFixed(2)})
+                            (${Number(plan.price_usd).toFixed(2)} /{" "}
+                            {plan.billing_frequency_months === 1
+                              ? "mo"
+                              : `${plan.billing_frequency_months}mo`}
+                            )
                           </span>
                         </span>
                       ) : (
@@ -193,7 +221,7 @@ export default function SubscriptionsPanel({
                         {sub.status ?? "—"}
                       </span>
                     </td>
-                    <td className="py-3 pr-4 text-white/70">
+                    <td className="py-3 pr-4">
                       {sub.next_billing_time ? (
                         <span className="text-gold-400">
                           {new Date(sub.next_billing_time).toLocaleDateString(
@@ -219,15 +247,11 @@ export default function SubscriptionsPanel({
                         </button>
                         {sub.status === "ACTIVE" && (
                           <button
-                            onClick={() => {
-                              setReviseSubId(sub.id);
-                              setSelectedNewPlan("");
-                              setReviseError(null);
-                            }}
+                            onClick={() => openUpdateModal(sub)}
                             disabled={loading === sub.id}
                             className="rounded bg-purple-500/10 px-2.5 py-1 text-xs text-purple-400 transition hover:bg-purple-500/20 disabled:opacity-50"
                           >
-                            Upgrade / Downgrade
+                            Update
                           </button>
                         )}
                         {sub.status !== "CANCELLED" && (
@@ -256,60 +280,92 @@ export default function SubscriptionsPanel({
         </div>
       )}
 
-      {/* Revise Modal */}
-      {reviseSubId && (
+      {/* Update Subscription Modal */}
+      {updateSub && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
           onClick={(e) => {
-            if (e.target === e.currentTarget) setReviseSubId(null);
+            if (e.target === e.currentTarget) setUpdateSub(null);
           }}
         >
           <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-dark-800 p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-white">
-                Upgrade / Downgrade
-              </h3>
+              <div>
+                <h3 className="text-lg font-semibold text-white">
+                  Update Subscription
+                </h3>
+                <p className="text-xs text-white/40">
+                  {updateSub.paypal_subscription_id}
+                </p>
+              </div>
               <button
-                onClick={() => setReviseSubId(null)}
+                onClick={() => setUpdateSub(null)}
                 className="rounded-lg p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
               >
                 ✕
               </button>
             </div>
 
-            {reviseError && (
+            {updateError && (
               <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-                {reviseError}
+                {updateError}
               </div>
             )}
 
-            <p className="mb-4 text-sm text-white/60">
-              Select the new plan to revise to. The user will be redirected to
-              PayPal to approve the change.
+            <p className="mb-5 text-sm text-white/50">
+              Set the new price and billing frequency. A new PayPal plan will be
+              created automatically and you&apos;ll be redirected to approve the
+              change.
             </p>
 
-            <select
-              value={selectedNewPlan}
-              onChange={(e) => setSelectedNewPlan(e.target.value)}
-              className="mb-4 w-full rounded-lg border border-white/10 bg-dark-700 px-3 py-2 text-sm text-white focus:border-gold-500 focus:outline-none"
-            >
-              <option value="">Select a plan…</option>
-              {activePlans.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name} — ${Number(p.price_usd).toFixed(2)}/
-                  {p.billing_frequency_months === 1
-                    ? "mo"
-                    : `${p.billing_frequency_months}mo`}
-                </option>
-              ))}
-            </select>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-white/60">
+                  New Price (USD)
+                </label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={updateForm.priceUsd}
+                  onChange={(e) =>
+                    setUpdateForm((f) => ({ ...f, priceUsd: e.target.value }))
+                  }
+                  className="w-full rounded-lg border border-white/10 bg-dark-700 px-3 py-2 text-sm text-white placeholder-white/30 focus:border-gold-500 focus:outline-none"
+                  placeholder="9.99"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-white/60">
+                  Charge Frequency
+                </label>
+                <select
+                  value={updateForm.billingFrequencyMonths}
+                  onChange={(e) =>
+                    setUpdateForm((f) => ({
+                      ...f,
+                      billingFrequencyMonths: e.target.value,
+                    }))
+                  }
+                  className="w-full rounded-lg border border-white/10 bg-dark-700 px-3 py-2 text-sm text-white focus:border-gold-500 focus:outline-none"
+                >
+                  <option value="1">Every month</option>
+                  <option value="3">Every 3 months</option>
+                  <option value="6">Every 6 months</option>
+                  <option value="12">Every 12 months</option>
+                </select>
+              </div>
+            </div>
 
             <button
-              onClick={() => handleRevise(reviseSubId)}
-              disabled={reviseLoading || !selectedNewPlan}
-              className="w-full rounded-lg bg-gold-500 py-2.5 text-sm font-semibold text-dark-950 transition hover:bg-gold-400 disabled:opacity-60"
+              onClick={handleUpdate}
+              disabled={updateLoading || !updateForm.priceUsd}
+              className="mt-6 w-full rounded-lg bg-gold-500 py-2.5 text-sm font-semibold text-dark-950 transition hover:bg-gold-400 disabled:opacity-60"
             >
-              {reviseLoading ? "Redirecting to PayPal…" : "Revise Subscription"}
+              {updateLoading
+                ? "Creating plan & redirecting…"
+                : "Update Subscription"}
             </button>
           </div>
         </div>

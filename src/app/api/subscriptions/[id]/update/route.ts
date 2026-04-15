@@ -1,0 +1,91 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createPayPalBillingPlan, revisePayPalSubscription } from "@/lib/paypal";
+
+export async function POST(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const body = (await req.json()) as {
+      priceUsd: number;
+      billingFrequencyMonths: number;
+    };
+
+    const { priceUsd, billingFrequencyMonths } = body;
+
+    if (!priceUsd || !billingFrequencyMonths) {
+      return NextResponse.json(
+        { error: "priceUsd and billingFrequencyMonths are required" },
+        { status: 400 }
+      );
+    }
+
+    const supabase = createSupabaseServerClient();
+
+    // Look up the subscription + its current plan
+    const { data: sub, error: subError } = await supabase
+      .from("subscriptions")
+      .select("*, plans(name, description)")
+      .eq("id", params.id)
+      .single();
+
+    if (subError || !sub) {
+      return NextResponse.json(
+        { error: "Subscription not found" },
+        { status: 404 }
+      );
+    }
+
+    const baseName = sub.plans?.name ?? "Updated Plan";
+    const freqLabel =
+      billingFrequencyMonths === 1
+        ? "Monthly"
+        : `Every ${billingFrequencyMonths} Months`;
+    const newPlanName = `${baseName} — $${Number(priceUsd).toFixed(2)} ${freqLabel}`;
+
+    // Create a new PayPal billing plan with the updated values
+    const newPaypalPlanId = await createPayPalBillingPlan(
+      newPlanName,
+      sub.plans?.description ?? newPlanName,
+      Number(priceUsd),
+      billingFrequencyMonths
+    );
+
+    // Save the new plan to Supabase
+    const { data: newPlan, error: planInsertError } = await supabase
+      .from("plans")
+      .insert({
+        paypal_plan_id: newPaypalPlanId,
+        name: newPlanName,
+        description: sub.plans?.description ?? null,
+        price_usd: Number(priceUsd),
+        billing_frequency_months: billingFrequencyMonths,
+        status: "ACTIVE",
+      })
+      .select()
+      .single();
+
+    if (planInsertError || !newPlan) {
+      throw new Error(`Failed to save new plan: ${planInsertError?.message}`);
+    }
+
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL ??
+      (req.headers.get("origin") || "http://localhost:3000");
+
+    // Revise the subscription to the new plan
+    const approvalUrl = await revisePayPalSubscription(
+      sub.paypal_subscription_id,
+      newPaypalPlanId,
+      new Date(Date.now() + 60_000).toISOString(),
+      `${baseUrl}/?paypal=success`,
+      `${baseUrl}/?paypal=cancelled`
+    );
+
+    return NextResponse.json({ approvalUrl, newPlan });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
