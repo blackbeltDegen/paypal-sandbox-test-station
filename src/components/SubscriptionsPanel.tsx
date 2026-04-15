@@ -24,6 +24,11 @@ export default function SubscriptionsPanel({
   const [subs, setSubs] = useState<Subscription[]>(initialSubscriptions);
   const [loading, setLoading] = useState<string | null>(null);
 
+  // PayPal details modal state
+  const [detailsSub, setDetailsSub] = useState<Subscription | null>(null);
+  const [detailsData, setDetailsData] = useState<Record<string, unknown> | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+
   // Update modal state
   const [updateSub, setUpdateSub] = useState<Subscription | null>(null);
   const [updateForm, setUpdateForm] = useState<UpdateForm>({
@@ -97,6 +102,21 @@ export default function SubscriptionsPanel({
       alert(err instanceof Error ? err.message : "Error deleting row");
     } finally {
       setLoading(null);
+    }
+  }
+
+  async function openDetailsModal(sub: Subscription) {
+    setDetailsSub(sub);
+    setDetailsData(null);
+    setDetailsLoading(true);
+    try {
+      const res = await fetch(`/api/subscriptions/${sub.id}/paypal-details`);
+      const data = await res.json();
+      setDetailsData(data);
+    } catch {
+      setDetailsData({ error: "Failed to fetch PayPal details" });
+    } finally {
+      setDetailsLoading(false);
     }
   }
 
@@ -274,6 +294,12 @@ export default function SubscriptionsPanel({
                         >
                           {loading === sub.id ? "…" : "Refresh"}
                         </button>
+                        <button
+                          onClick={() => openDetailsModal(sub)}
+                          className="rounded bg-white/5 px-2.5 py-1 text-xs text-white/50 transition hover:bg-white/10 hover:text-white"
+                        >
+                          PayPal Details
+                        </button>
                         {sub.status === "ACTIVE" && (
                           <button
                             onClick={() => openUpdateModal(sub)}
@@ -306,6 +332,87 @@ export default function SubscriptionsPanel({
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* PayPal Details Modal */}
+      {detailsSub && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setDetailsSub(null);
+          }}
+        >
+          <div className="w-full max-w-2xl rounded-2xl border border-white/10 bg-dark-800 p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-white">PayPal Subscription Details</h3>
+                <p className="text-xs text-white/40">{detailsSub.paypal_subscription_id}</p>
+              </div>
+              <button
+                onClick={() => setDetailsSub(null)}
+                className="rounded-lg p-1.5 text-white/50 transition hover:bg-white/10 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            {detailsLoading && (
+              <div className="flex items-center justify-center py-12 text-white/40">
+                <svg className="mr-2 h-5 w-5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                Fetching from PayPal…
+              </div>
+            )}
+
+            {detailsData && !detailsLoading && (
+              <>
+                {/* Key fields summary */}
+                <div className="mb-4 grid grid-cols-2 gap-3">
+                  {[
+                    { label: "Status", value: detailsData.status as string },
+                    { label: "Plan ID", value: detailsData.plan_id as string },
+                    {
+                      label: "Next Billing",
+                      value: (detailsData.billing_info as Record<string, unknown>)
+                        ?.next_billing_time
+                        ? new Date(
+                            (detailsData.billing_info as Record<string, unknown>)
+                              .next_billing_time as string
+                          ).toLocaleString()
+                        : "—",
+                    },
+                    {
+                      label: "Last Payment",
+                      value: (() => {
+                        const last = (
+                          (detailsData.billing_info as Record<string, unknown>)
+                            ?.last_payment as Record<string, unknown>
+                        );
+                        return last
+                          ? `$${(last.amount as Record<string, unknown>)?.value} on ${new Date(last.time as string).toLocaleDateString()}`
+                          : "—";
+                      })(),
+                    },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="rounded-lg border border-white/5 bg-dark-700 px-3 py-2">
+                      <p className="mb-0.5 text-xs text-white/40">{label}</p>
+                      <p className="text-sm font-medium text-gold-400">{value ?? "—"}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Raw JSON */}
+                <div className="max-h-72 overflow-y-auto rounded-lg border border-white/5 bg-dark-950 p-3">
+                  <pre className="whitespace-pre-wrap font-mono text-xs text-white/60">
+                    {JSON.stringify(detailsData, null, 2)}
+                  </pre>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       )}
 
