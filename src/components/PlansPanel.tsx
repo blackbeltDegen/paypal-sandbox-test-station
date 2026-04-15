@@ -143,8 +143,14 @@ export default function PlansPanel({ initialPlans, onLog, onRefresh }: Props) {
                   </td>
                   <td className="py-3 pr-4 text-white/70">
                     {plan.billing_frequency_months === 1
-                      ? "Monthly"
-                      : `${plan.billing_frequency_months}mo`}
+                      ? "Every month"
+                      : plan.billing_frequency_months === 3
+                      ? "Every 3 months"
+                      : plan.billing_frequency_months === 6
+                      ? "Every 6 months"
+                      : plan.billing_frequency_months === 12
+                      ? "Every 12 months"
+                      : `Every ${plan.billing_frequency_months} months`}
                   </td>
                   <td className="py-3 pr-4">
                     <code className="rounded bg-white/5 px-1.5 py-0.5 text-xs text-gold-400">
@@ -273,12 +279,9 @@ export default function PlansPanel({ initialPlans, onLog, onRefresh }: Props) {
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-medium text-white/60">
-                    Billing (months)
+                    Charge frequency
                   </label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="12"
+                  <select
                     value={form.billingFrequencyMonths}
                     onChange={(e) =>
                       setForm((f) => ({
@@ -287,7 +290,12 @@ export default function PlansPanel({ initialPlans, onLog, onRefresh }: Props) {
                       }))
                     }
                     className="w-full rounded-lg border border-white/10 bg-dark-700 px-3 py-2 text-sm text-white focus:border-gold-500 focus:outline-none"
-                  />
+                  >
+                    <option value="1">Every month</option>
+                    <option value="3">Every 3 months</option>
+                    <option value="6">Every 6 months</option>
+                    <option value="12">Every 12 months</option>
+                  </select>
                 </div>
               </div>
               <div>

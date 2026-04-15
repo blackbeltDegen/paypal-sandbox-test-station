@@ -151,7 +151,8 @@ export default function PayPalCheckoutModal({
               ${Number(plan.price_usd).toFixed(2)} /{" "}
               {plan.billing_frequency_months === 1
                 ? "month"
-                : `${plan.billing_frequency_months} months`}
+                : `${plan.billing_frequency_months} months`}{" "}
+              · billed indefinitely
             </p>
           </div>
           <button
