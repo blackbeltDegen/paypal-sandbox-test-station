@@ -41,7 +41,7 @@ export async function GET(
       throw new Error(`Supabase update error: ${updateError.message}`);
     }
 
-    return NextResponse.json(updated);
+    return NextResponse.json({ ...updated, _debug_paypal_billing_info: billingInfo });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
