@@ -18,5 +18,5 @@ export interface Subscription {
   next_billing_time: string | null;
   created_at: string;
   updated_at: string;
-  plans?: Pick<Plan, "name" | "price_usd"> | null;
+  plans?: Pick<Plan, "name" | "price_usd" | "billing_frequency_months"> | null;
 }

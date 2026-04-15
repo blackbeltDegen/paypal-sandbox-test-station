@@ -174,6 +174,7 @@ export default function SubscriptionsPanel({
                 <th className="pb-3 pr-4 font-medium">Label</th>
                 <th className="pb-3 pr-4 font-medium">Subscription ID</th>
                 <th className="pb-3 pr-4 font-medium">Plan</th>
+                <th className="pb-3 pr-4 font-medium">Frequency</th>
                 <th className="pb-3 pr-4 font-medium">Status</th>
                 <th className="pb-3 pr-4 font-medium">Next Billing</th>
                 <th className="pb-3 pr-4 font-medium">Created</th>
@@ -212,6 +213,15 @@ export default function SubscriptionsPanel({
                         </span>
                       ) : (
                         <span className="text-white/30">Unknown</span>
+                      )}
+                    </td>
+                    <td className="py-3 pr-4 text-white/70">
+                      {plan ? (
+                        plan.billing_frequency_months === 1
+                          ? "Every month"
+                          : `Every ${plan.billing_frequency_months} months`
+                      ) : (
+                        <span className="text-white/30">—</span>
                       )}
                     </td>
                     <td className="py-3 pr-4">

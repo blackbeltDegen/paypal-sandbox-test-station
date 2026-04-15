@@ -18,7 +18,7 @@ export default async function HomePage({
       .order("created_at", { ascending: false }),
     supabase
       .from("subscriptions")
-      .select("*, plans(name, price_usd)")
+      .select("*, plans(name, price_usd, billing_frequency_months)")
       .order("created_at", { ascending: false }),
   ]);
 

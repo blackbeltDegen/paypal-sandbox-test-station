@@ -6,7 +6,7 @@ export async function GET() {
     const supabase = createSupabaseServerClient();
     const { data, error } = await supabase
       .from("subscriptions")
-      .select("*, plans(name, price_usd)")
+      .select("*, plans(name, price_usd, billing_frequency_months)")
       .order("created_at", { ascending: false });
 
     if (error) throw new Error(error.message);
