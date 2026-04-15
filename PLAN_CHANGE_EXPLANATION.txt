@@ -1,0 +1,59 @@
+PayPal Subscription Plan Change — How It Works
+===============================================
+
+The Problem
+-----------
+PayPal does not let you edit a plan's price or billing frequency directly. To change what a
+subscriber is charged, you must:
+  1. Create a new billing plan with the new price/frequency
+  2. Revise the existing subscription to point to the new plan
+  3. The subscriber must approve the change on PayPal
+
+
+Requirements
+------------
+- The new plan must belong to the same PayPal product as the original plan. If you create a
+  new product, PayPal returns a PLAN_PRODUCT_NOT_COMPATIBLE error.
+- To get the original plan's product_id, call:
+    GET /v1/billing/plans/{planId}
+  and read the product_id field. Pass that as product_id when creating the new plan instead
+  of creating a new product.
+
+
+Controlling the Start Date
+--------------------------
+PayPal's effective_time field on the revision request does NOT reliably change when the first
+charge happens. To delay the first charge to a specific date:
+
+  1. Calculate the number of days between today and the desired start date.
+  2. Add a TRIAL billing cycle to the new plan:
+       - tenure_type: "TRIAL"
+       - sequence: 1
+       - total_cycles: 1
+       - interval_unit: "DAY"
+       - interval_count: <number of days until start date>
+       - fixed_price: $0.00
+  3. Set the regular billing cycle as sequence: 2.
+  4. PayPal will charge $0 for the trial period, then begin regular billing on the start date.
+
+NOTE: PayPal sandbox completes trial periods instantly. This behavior only works correctly
+in a live/production environment.
+
+
+The Full Flow
+-------------
+  1. Fetch the current plan's product_id from PayPal:
+       GET /v1/billing/plans/{planId}
+
+  2. Create a new billing plan under that same product (with optional $0 trial cycle):
+       POST /v1/billing/plans
+
+  3. Revise the subscription to the new plan:
+       POST /v1/billing/subscriptions/{subscriptionId}/revise
+       Body: { plan_id: <new_plan_id>, effective_time: <iso_datetime> }
+
+  4. Return the approval URL from the response links (rel: "approve") to the user.
+
+  5. User logs into PayPal and approves the change.
+
+  6. After approval, update your database to point the subscription record to the new plan.
