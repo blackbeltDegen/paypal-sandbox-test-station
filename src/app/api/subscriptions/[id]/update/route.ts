@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { createPayPalBillingPlan, revisePayPalSubscription } from "@/lib/paypal";
+import { createPayPalBillingPlan, getPayPalBillingPlan, revisePayPalSubscription } from "@/lib/paypal";
 
 export async function POST(
   req: NextRequest,
@@ -44,12 +44,27 @@ export async function POST(
         : `Every ${billingFrequencyMonths} Months`;
     const newPlanName = `${baseName} — $${Number(priceUsd).toFixed(2)} ${freqLabel}`;
 
-    // Create a new PayPal billing plan with the updated values
+    // Fetch the current plan's product_id from PayPal so the new plan
+    // belongs to the same product (required by PayPal for subscription revision)
+    const { data: currentPlan } = await supabase
+      .from("plans")
+      .select("paypal_plan_id")
+      .eq("id", sub.plan_id)
+      .single();
+
+    let existingProductId: string | undefined;
+    if (currentPlan?.paypal_plan_id) {
+      const paypalPlan = await getPayPalBillingPlan(currentPlan.paypal_plan_id);
+      existingProductId = paypalPlan.product_id as string | undefined;
+    }
+
+    // Create a new PayPal billing plan under the same product
     const newPaypalPlanId = await createPayPalBillingPlan(
       newPlanName,
       sub.plans?.description ?? newPlanName,
       Number(priceUsd),
-      billingFrequencyMonths
+      billingFrequencyMonths,
+      existingProductId
     );
 
     // Save the new plan to Supabase

@@ -125,6 +125,24 @@ export async function createPayPalBillingPlan(
   return plan.id as string;
 }
 
+/** Fetches a billing plan's details from PayPal (includes product_id). */
+export async function getPayPalBillingPlan(
+  planId: string
+): Promise<Record<string, unknown>> {
+  const token = await getPayPalAccessToken();
+
+  const res = await fetch(`${PAYPAL_BASE_URL}/v1/billing/plans/${planId}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`PayPal get plan error ${res.status}: ${body}`);
+  }
+
+  return res.json();
+}
+
 /** Deactivates a billing plan by setting its status to INACTIVE. */
 export async function deactivatePayPalBillingPlan(planId: string): Promise<void> {
   const token = await getPayPalAccessToken();
